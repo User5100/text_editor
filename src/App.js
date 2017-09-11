@@ -1,7 +1,9 @@
 import React, { Component } from 'react'
 import { Editor, EditorState, 
-				 Modifier, ContentState } from 'draft-js'
+				 Modifier, ContentState,
+				 convertToRaw } from 'draft-js'
 import * as axios from 'axios'
+import * as Immutable from 'immutable'
 import { Observable } from 'rxjs/Observable'
 import 'rxjs/add/observable/fromEvent'
 import 'rxjs/add/operator/takeUntil'
@@ -20,6 +22,44 @@ class App extends Component {
 		this.setDomEditorRef = ref => this.domEditor = ref
 		this.highlightSelection = this.highlightSelection.bind(this)
 		this.setSelection = this.setSelection.bind(this)
+		this.getMetaData = this.getMetaData.bind(this)
+		this.setMetaData = this.setMetaData.bind(this)
+		this.convertToRaw = this.convertToRaw.bind(this)
+	}
+
+	convertToRaw() {
+		console.log(convertToRaw(this.state.editorState.getCurrentContent()))
+	}
+
+	getMetaData() {
+		let currentContent
+		let block
+		let charList
+
+		currentContent = this.state.editorState.getCurrentContent()
+		block = currentContent.getFirstBlock()
+		charList = block.getCharacterList()
+
+		console.log(charList)
+	}
+
+	setMetaData() {
+		console.log('setMetaData')
+		let currentContent
+		let block
+		let charList
+		let newBlock
+		let newContentState
+
+		currentContent = this.state.editorState.getCurrentContent()
+		block = currentContent.getFirstBlock()
+
+		newBlock = block.set('characterList', Immutable.List.of('Milk', 'Egg'))
+		newContentState = ContentState.createFromBlockArray([newBlock])
+		this.setState({ editorState: EditorState.createWithContent(newContentState) }, () => {
+			console.log(this.state.editorState)
+		})
+
 	}
 
 	setSelection() {
@@ -125,6 +165,24 @@ class App extends Component {
 					style={styles.button}
 					type="button"
 					value="Set Selection"
+				/>
+				<input
+					onClick={this.getMetaData}
+					style={styles.button}
+					type="button"
+					value="Get MetaData"
+				/>
+				<input
+					onClick={this.setCharMetaData}
+					style={styles.button}
+					type="button"
+					value="Set MetaData"
+				/>
+				<input
+					onClick={this.convertToRaw}
+					style={styles.button}
+					type="button"
+					value="To Raw"
 				/>
 			</div>
 		)
