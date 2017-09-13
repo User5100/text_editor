@@ -27,7 +27,7 @@ class App extends Component {
 		this.createEntities = this.createEntities.bind(this)
 		this.insertText = this.insertText.bind(this)
 		this.applyEntities = this.applyEntities.bind(this)
-		this.n = 0
+		this.n = 1
 	}
 
 	createEntities() {		
@@ -47,6 +47,7 @@ class App extends Component {
 	}
 
 	applyEntities() {
+		/*
 		let newContent
 		let newContent2
 
@@ -59,7 +60,31 @@ class App extends Component {
 		this.state.editorState.getSelection().set('anchorOffset', 5).set('focusOffset', 7),
 		'2')
 		this.setState({ editorState: EditorState.createWithContent(newContent2) })
+		*/
+		var contentState = this.state.editorState.getCurrentContent()
+		var words = this.state.words
+		var n = 0
 
+		function recursive(content = contentState) {
+			var newContent
+			if(n >= this.state.words.length) {
+				this.setState({ editorState: EditorState.push(this.state.editorState, content, 'apply-entity') })
+				return 1
+			}
+			
+			newContent = Modifier.applyEntity(content,
+				this.state.editorState
+					.getSelection()
+					.set('anchorOffset', words[n].anchorOffsetState)
+					.set('focusOffset', words[n].focusOffsetState),
+				(n + 1).toString())
+			
+			n += 1
+			return recursive(newContent)
+		}
+
+		recursive = recursive.bind(this)
+		recursive()
 	}
 
 	insertText() {
