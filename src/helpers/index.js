@@ -16,13 +16,12 @@ export const calculateAnchorFocusOffsets = (words) => {
   
   result = words.map(wordObj => {
     let newWordObj
-    focusOffsetState += wordObj.word.length
+    focusOffsetState = wordObj.word.length + anchorOffsetState
 
     newWordObj = Object.assign({}, wordObj, { anchorOffsetState, focusOffsetState })
 
     //update anchorOffsetState for next iteration
-    anchorOffsetState += focusOffsetState + 1 //1 representing space between next word
-
+    anchorOffsetState += wordObj.word.length + 1 //1 representing space between next word
     return newWordObj
   })
 
@@ -44,4 +43,17 @@ export const wordsToText = (words) => {
 
 export const addTimeStampOfNextWord = (words) => {
   
+}
+
+export const transformContent = (words, transformFn, editorState) => {
+  let newContentState = editorState.getCurrentContent()
+  let contentStateWithAppliedEntities
+  let selectionState = editorState.getSelection()
+
+  words.map((wordObj, index) => {
+    newContentState = transformFn(newContentState, selectionState, index + 1)
+    console.log('newContentState: ', newContentState.getEntity((index + 1).toString()))
+  })
+
+  return newContentState
 }

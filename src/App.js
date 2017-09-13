@@ -1,7 +1,7 @@
 import React, { Component } from 'react'
 import { Editor, EditorState, 
 				 Modifier, ContentState,
-				 convertToRaw } from 'draft-js'
+				 convertToRaw, CharacterMetadata } from 'draft-js'
 import * as axios from 'axios'
 import * as Immutable from 'immutable'
 import { Observable } from 'rxjs/Observable'
@@ -11,7 +11,8 @@ import 'rxjs/add/operator/switchMap'
 
 import { segmentsToWords,
 				 calculateAnchorFocusOffsets,
-				 wordsToText } from './helpers'
+				 wordsToText,
+				 transformContent } from './helpers'
 
 class App extends Component {
 	constructor() {
@@ -22,54 +23,72 @@ class App extends Component {
 		this.setDomEditorRef = ref => this.domEditor = ref
 		this.highlightSelection = this.highlightSelection.bind(this)
 		this.setSelection = this.setSelection.bind(this)
-		this.getMetaData = this.getMetaData.bind(this)
-		this.setMetaData = this.setMetaData.bind(this)
 		this.convertToRaw = this.convertToRaw.bind(this)
+		this.createEntities = this.createEntities.bind(this)
+		this.insertText = this.insertText.bind(this)
+		this.applyEntities = this.applyEntities.bind(this)
+		this.n = 0
 	}
+
+	createEntities() {		
+		let contentState = this.state.editorState.getCurrentContent()
+		let contentStateWithEntity
+		
+		this.state.words.map(wordObj => {
+			contentStateWithEntity = contentState.createEntity(
+				wordObj.word, // type
+				'MUTABLE',    // mutability
+				wordObj				// data Object
+			)
+		})
+
+		let editorState = EditorState.push(this.state.editorState, contentStateWithEntity, 'apply-entity')	
+		this.setState({ editorState })
+	}
+
+	applyEntities() {
+		let newContent
+		let newContent2
+
+
+		newContent = Modifier.applyEntity(this.state.editorState.getCurrentContent(),
+		this.state.editorState.getSelection().set('anchorOffset', 0).set('focusOffset', 4),
+		'1')
+
+		newContent2 = Modifier.applyEntity(newContent,
+		this.state.editorState.getSelection().set('anchorOffset', 5).set('focusOffset', 7),
+		'2')
+		this.setState({ editorState: EditorState.createWithContent(newContent2) })
+
+	}
+
+	insertText() {
+		let newContentState
+		let editorState
+
+		newContentState = Modifier.insertText(
+			this.state.editorState.getCurrentContent(),	// ContentState
+			this.state.editorState.getSelection(),			// SelectionState
+			'Hello, world',															// string
+			{},
+			'1')																				// string
+
+		this.setState({ editorState: EditorState.push(this.state.editorState, newContentState, 'insert-characters') })
+		
+	}
+
 
 	convertToRaw() {
 		console.log(convertToRaw(this.state.editorState.getCurrentContent()))
 	}
 
-	getMetaData() {
-		let currentContent
-		let block
-		let charList
-
-		currentContent = this.state.editorState.getCurrentContent()
-		block = currentContent.getFirstBlock()
-		charList = block.getCharacterList()
-
-		console.log(charList)
-	}
-
-	setMetaData() {
-		console.log('setMetaData')
-		let currentContent
-		let block
-		let charList
-		let newBlock
-		let newContentState
-
-		currentContent = this.state.editorState.getCurrentContent()
-		block = currentContent.getFirstBlock()
-
-		newBlock = block.set('characterList', Immutable.List.of('Milk', 'Egg'))
-		newContentState = ContentState.createFromBlockArray([newBlock])
-		this.setState({ editorState: EditorState.createWithContent(newContentState) }, () => {
-			console.log(this.state.editorState)
-		})
-
-	}
-
-	setSelection() {
-
-		this.newSelection = this.state.editorState.getSelection().set('anchorOffset', 4)
-		this.state.editorState.getSelection().set('focusOffset', 4)
-	
-		let newState = EditorState.forceSelection(this.state.editorState, this.newSelection)
-
-		this.setState({ editorState: newState })
+	setSelection(anchor, focus) {
+		this.newSelection = this.state.editorState.getSelection()
+														.set('anchorOffset', anchor)
+														.set('focusOffset', focus)
+		
+		let newEditorState = EditorState.forceSelection(this.state.editorState, this.newSelection)
+		return newEditorState
 	}
 
 	highlightSelection() {
@@ -161,28 +180,28 @@ class App extends Component {
 					value="Highlight Selection"
 				/>
 				<input
-					onClick={this.setSelection}
-					style={styles.button}
-					type="button"
-					value="Set Selection"
-				/>
-				<input
-					onClick={this.getMetaData}
-					style={styles.button}
-					type="button"
-					value="Get MetaData"
-				/>
-				<input
-					onClick={this.setCharMetaData}
-					style={styles.button}
-					type="button"
-					value="Set MetaData"
-				/>
-				<input
 					onClick={this.convertToRaw}
 					style={styles.button}
 					type="button"
 					value="To Raw"
+				/>
+				<input
+					onClick={this.createEntities}
+					style={styles.button}
+					type="button"
+					value="Create Entities"
+				/>
+				<input
+					onClick={this.applyEntities}
+					style={styles.button}
+					type="button"
+					value="Apply Entities"
+				/>
+				<input
+					onClick={this.insertText}
+					style={styles.button}
+					type="button"
+					value="Insert Text"
 				/>
 			</div>
 		)
