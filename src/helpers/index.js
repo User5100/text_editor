@@ -6,6 +6,12 @@ export const segmentsToWords = (srts) => {
       words = [...words, ...segment.words]
   })
 
+  words = words.map(wordObj => {
+    let word = typeof wordObj.word === 'string'? wordObj.word : wordObj.word.toString()
+    
+    return Object.assign({}, wordObj, { word })
+  })
+
   return words
 }
 

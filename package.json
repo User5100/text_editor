@@ -6,7 +6,7 @@
   "author": "Thai Mao",
   "license": "MIT",
   "scripts": {
-    "start": "concurrently \"webpack-dev-server\" \"json-server --watch db.json\""
+    "start": "concurrently \"webpack-dev-server\" \"json-server --watch ./mock/db_long_transcript.json\""
   },
   "dependencies": {
     "axios": "^0.16.2",

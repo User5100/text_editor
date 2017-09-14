@@ -1,7 +1,8 @@
 import React, { Component } from 'react'
 import { Editor, EditorState, 
 				 Modifier, ContentState,
-				 convertToRaw, CharacterMetadata } from 'draft-js'
+				 convertToRaw, convertFromRaw,
+				 CharacterMetadata } from 'draft-js'
 import * as axios from 'axios'
 import * as Immutable from 'immutable'
 import { Observable } from 'rxjs/Observable'
@@ -17,98 +18,147 @@ import { segmentsToWords,
 class App extends Component {
 	constructor() {
 		super()
-		this.state = {editorState: EditorState.createEmpty(), words: [] }
-		this.onChange = (editorState) => this.setState({editorState})
-		this.logState = () => console.log(this.state.editorState.toJS())
+		this.state = { editorState: EditorState.createEmpty(), words: [] }
+		this.onChange = this.onChange.bind(this)
+		this.logState = () => {
+			console.log('this.state.editorState: ', this.state.editorState.toJS())
+			console.log('this.state.words: ', this.state.words)
+			console.log('convert contentState to raw: ', convertToRaw(this.state.editorState.getCurrentContent()))
+		}
 		this.setDomEditorRef = ref => this.domEditor = ref
 		this.highlightSelection = this.highlightSelection.bind(this)
 		this.setSelection = this.setSelection.bind(this)
-		this.convertToRaw = this.convertToRaw.bind(this)
 		this.createEntities = this.createEntities.bind(this)
 		this.insertText = this.insertText.bind(this)
-		this.applyEntities = this.applyEntities.bind(this)
-		this.n = 1
+		this.getNewWordEntityKey = this.getNewWordEntityKey.bind(this)
+		this.rawToWords = this.rawToWords.bind(this)
+		this.updateEditorState = this.updateEditorState.bind(this)
+		this.setCurrentTimeWithCursor = this.setCurrentTimeWithCursor.bind(this)
+		this.setCurrentTime = this.setCurrentTime.bind(this)
 	}
 
-	createEntities() {		
-		let contentState = this.state.editorState.getCurrentContent()
-		let contentStateWithEntity
-		
-		this.state.words.map(wordObj => {
-			contentStateWithEntity = contentState.createEntity(
-				wordObj.word, // type
-				'MUTABLE',    // mutability
-				wordObj				// data Object
-			)
-		})
-
-		let editorState = EditorState.push(this.state.editorState, contentStateWithEntity, 'apply-entity')	
+	updateEditorState(content) {
+		let editorState
+		editorState = EditorState.push(this.state.editorState, content, 'apply-entity')
 		this.setState({ editorState })
 	}
 
-	applyEntities() {
-		/*
-		let newContent
-		let newContent2
+	setCurrentTimeWithCursor(editorState) {
+		var contentState = editorState.getCurrentContent()
+		var selectionState = editorState.getSelection()
+		var start = selectionState.getStartOffset()
+		var block = contentState.getFirstBlock()
+		var text = block.getText()
+		var entityKey
 
-
-		newContent = Modifier.applyEntity(this.state.editorState.getCurrentContent(),
-		this.state.editorState.getSelection().set('anchorOffset', 0).set('focusOffset', 4),
-		'1')
-
-		newContent2 = Modifier.applyEntity(newContent,
-		this.state.editorState.getSelection().set('anchorOffset', 5).set('focusOffset', 7),
-		'2')
-		this.setState({ editorState: EditorState.createWithContent(newContent2) })
-		*/
-		var contentState = this.state.editorState.getCurrentContent()
-		var words = this.state.words
-		var n = 0
-
-		function recursive(content = contentState) {
-			var newContent
-			if(n >= this.state.words.length) {
-				this.setState({ editorState: EditorState.push(this.state.editorState, content, 'apply-entity') })
-				return 1
-			}
-			
-			newContent = Modifier.applyEntity(content,
-				this.state.editorState
-					.getSelection()
-					.set('anchorOffset', words[n].anchorOffsetState)
-					.set('focusOffset', words[n].focusOffsetState),
-				(n + 1).toString())
-			
-			n += 1
-			return recursive(newContent)
+		if(text.slice(start, start + 1) === ' ') {
+			start = (start - 1).toString()
 		}
 
-		recursive = recursive.bind(this)
-		recursive()
+		entityKey = block.getEntityAt(start)
+
+		var entity = contentState.getEntity(entityKey)
+		var timestamp = entity.get('data').timestamp
+
+		this.setCurrentTime(timestamp)
+	}
+
+	setCurrentTime(timestamp) {
+		this.audio.currentTime = timestamp
+	}
+
+	onChange(editorState) {
+		
+		if(this.state.words.length) {
+			this.setCurrentTimeWithCursor(editorState)
+		}
+		
+
+		this.setState({ editorState })
+	}
+
+	getNewWordEntityKey(content = this.state.editorState.getCurrentContent()) {
+		let entityKey = content.getLastCreatedEntityKey()
+		return entityKey
+	}
+
+	createEntities() {
+		var contentState
+		var words = this.state.words
+		var entityRanges
+		var entityMap = {}
+		var text = wordsToText(words)
+		var block
+	
+		entityRanges = words.map((wordObj, index) => {
+			return Object.assign({}, 
+				{ offset: wordObj.anchorOffsetState,
+					length: typeof wordObj.word === 'string'? wordObj.word.length : (wordObj.word).toString().length,
+					key: (index).toString() })
+		})
+
+		words.map((wordObj, index) => {
+
+			entityMap[index] = {
+				type: (wordObj.id).toString(),
+				mutability: 'MUTABLE',
+				data: wordObj
+			}
+		})
+
+		block = {
+			text,
+			entityRanges	
+		}
+
+		contentState = convertFromRaw({
+			blocks: [block],
+			entityMap
+		})
+
+		this.updateEditorState(contentState)
 	}
 
 	insertText() {
 		let newContentState
 		let editorState
+		let newWordEntityKey = 	this.getNewWordEntityKey()
 
 		newContentState = Modifier.insertText(
 			this.state.editorState.getCurrentContent(),	// ContentState
 			this.state.editorState.getSelection(),			// SelectionState
 			'Hello, world',															// string
 			{},
-			'1')																				// string
+			newWordEntityKey)														// string
 
 		this.setState({ editorState: EditorState.push(this.state.editorState, newContentState, 'insert-characters') })
 		
 	}
 
+	rawToWords() {
+		var words = []
+		var raw = convertToRaw(this.state.editorState.getCurrentContent())
+		var block = raw.blocks[0]
+		var entityRanges = block.entityRanges // Array<{ offset: number, length: number, key: number }>
+		var text = block.text									// text: string
+		var entityMap = raw.entityMap 				// { 0: { data: {}, mutability: string, type: string }, ... }
 
-	convertToRaw() {
-		console.log(convertToRaw(this.state.editorState.getCurrentContent()))
+		words = entityRanges.map(range => {
+			let { offset, length, key } = range
+			let word = text.slice(offset, offset + length)//.replace(/ /g, '')
+
+			return Object.assign({}, entityMap[key].data, { 
+				word, 
+				anchorOffsetState: offset,
+				focusOffsetState: offset + length })
+		})
+
+		console.log(words.length, words) //updateWords state
 	}
 
 	setSelection(anchor, focus) {
-		this.newSelection = this.state.editorState.getSelection()
+		this.newSelection = this.state.editorState
+														.getSelection()
 														.set('anchorOffset', anchor)
 														.set('focusOffset', focus)
 		
@@ -149,15 +199,8 @@ class App extends Component {
 				//convert words to text
 				return wordsToText(this.state.words)
 			})
-			.then((text) => {
-				let editorState
-				let contentState
-
-				//set contentState of Editor with words
-				contentState = ContentState.createFromText(text)
-				editorState = EditorState.createWithContent(contentState)
-
-				this.setState({ editorState })
+			.then(() => {
+				this.createEntities()
 			})
 
 		//Handle audio player async behaviour
@@ -170,7 +213,7 @@ class App extends Component {
 		
 		Observable
 			.fromEvent(this.audio, 'timeupdate')
-			.subscribe(event => console.log('currentTime: ', event.target.currentTime))
+			//.subscribe(event => console.log('currentTime: ', event.target.currentTime))
 		
 	}
 
@@ -180,8 +223,34 @@ class App extends Component {
 				<audio
 					ref={audio => this.audio = audio}
 					controls
-					src='http://k003.kiwi6.com/hotlink/5p87y9ftzg/LOCAL_FEED_JULY_8kHz.wav'	
+					src='http://k003.kiwi6.com/hotlink/rp59uyxx7z/1000009.wav'	
 				/>
+				<div>
+					<input
+						onClick={this.logState}
+						style={styles.button}
+						type="button"
+						value="Log State"
+					/>
+					<input
+						onClick={this.highlightSelection}
+						style={styles.button}
+						type="button"
+						value="Highlight Selection"
+					/>
+					<input
+						onClick={this.insertText}
+						style={styles.button}
+						type="button"
+						value="Insert Text"
+					/>
+					<input
+						onClick={this.rawToWords}
+						style={styles.button}
+						type="button"
+						value="Raw To Words"
+					/>
+				</div>
 				<div 
 					style={styles.editor} 
 					onClick={this.focus}>
@@ -189,45 +258,10 @@ class App extends Component {
 						customStyleMap={styleMap} 
 						editorState={this.state.editorState} 
 						onChange={this.onChange}
-						placeholder="Enter some text..."
+						placeholder="Loading..."
             ref={this.setDomEditorRef} />
 				</div>
-				<input
-					onClick={this.logState}
-					style={styles.button}
-					type="button"
-					value="Log State"
-				/>
-				<input
-					onClick={this.highlightSelection}
-					style={styles.button}
-					type="button"
-					value="Highlight Selection"
-				/>
-				<input
-					onClick={this.convertToRaw}
-					style={styles.button}
-					type="button"
-					value="To Raw"
-				/>
-				<input
-					onClick={this.createEntities}
-					style={styles.button}
-					type="button"
-					value="Create Entities"
-				/>
-				<input
-					onClick={this.applyEntities}
-					style={styles.button}
-					type="button"
-					value="Apply Entities"
-				/>
-				<input
-					onClick={this.insertText}
-					style={styles.button}
-					type="button"
-					value="Insert Text"
-				/>
+				
 			</div>
 		)
 	}
