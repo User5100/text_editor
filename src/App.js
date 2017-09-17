@@ -7,6 +7,7 @@ import * as axios from 'axios'
 import * as Immutable from 'immutable'
 import { Observable } from 'rxjs/Observable'
 import 'rxjs/add/observable/fromEvent'
+import 'rxjs/add/observable/merge'
 import 'rxjs/add/observable/from'
 import 'rxjs/add/operator/takeUntil'
 import 'rxjs/add/operator/switchMap'
@@ -14,6 +15,7 @@ import 'rxjs/add/operator/map'
 import 'rxjs/add/operator/filter'
 import 'rxjs/add/operator/scan'
 import 'rxjs/add/operator/distinct'
+import 'rxjs/add/operator/debounceTime'
 
 import { segmentsToWords,
 				 calculateAnchorFocusOffsets,
@@ -26,6 +28,7 @@ class App extends Component {
 		this.state = { editorState: EditorState.createEmpty(), words: [] }
 		this.onChange = this.onChange.bind(this)
 		this.logState = () => {
+			console.log('startOffset: ', this.state.editorState.getSelection().getStartOffset())
 			console.log('this.state.editorState: ', this.state.editorState.toJS())
 			console.log('this.state.words: ', this.state.words)
 			console.log('convert contentState to raw: ', convertToRaw(this.state.editorState.getCurrentContent()))
@@ -41,6 +44,7 @@ class App extends Component {
 		this.applyNewWordEntity = this.applyNewWordEntity.bind(this)
 		this.getNewFromText = this.getNewFromText.bind(this)
 		this.getNewWordsAndApplyEntity = this.getNewWordsAndApplyEntity.bind(this)
+		this.editorStateRealTime
 	}
 
 	getNewWordsAndApplyEntity() {
@@ -151,13 +155,9 @@ class App extends Component {
 
 	onChange(editorState) {
 
-		//Don't set current time with cursor unless words have been stored. 	
-		if(this.state.words.length) {
-			//TODO - Need to apply a new Entity key before calling to prevent 'Unknown DraftEntity Key' error
-			this.setCurrentTimeWithCursor(this.state.editorState)
-		}
-
-		this.setState({ editorState }) //Required to ensure clicking on a word adjusts the current time
+		//store latest editorState for later use
+		this.editorStateRealTime = editorState
+		
 	}
 
 	getNewWordEntityKey(content = this.state.editorState.getCurrentContent()) {
@@ -244,7 +244,8 @@ class App extends Component {
 	}
 
 	componentDidMount() {
-		this.domEditor.focus()
+		console.log('startOffset: ', this.state.editorState.getSelection().getStartOffset())
+		//this.domEditor.focus()
 
 		//get data from mock server
 		axios.get('http://localhost:3000/Item')
@@ -304,6 +305,46 @@ class App extends Component {
 		this.getLatestWordPlayed$ = this.play$
 			.switchMap(() => this.lastWord$.takeUntil(this.pause$))
 
+		//clicking on editor to set current time based on the
+		//selectionState
+
+		this.enter$ = Observable
+			.fromEvent(this.domEditor, 'keydown')
+			.map(event => event.code)
+			.filter(code => code == 'Enter')
+
+		this.backSpace$ = Observable
+			.fromEvent(document, 'keydown')
+			.map(event => event.code)
+			.filter(code => code == 'Backspace')
+
+		this.arrow$ = Observable
+		.fromEvent(document, 'keydown')
+		.map(event => event.code)
+		.filter(code => code.indexOf('Arrow') === 0)
+
+		Observable.merge(this.backSpace$, this.arrow$)
+			.subscribe(() => this.setState({ editorState: this.editorStateRealTime }))
+
+		this.click$ = Observable
+			.fromEvent(document, 'click')
+
+		this.click$
+			//document is the target so this.domEditor.focus() sets cursor
+			//to the latest cursor position
+			.subscribe(event => {
+
+				//re-apply focus
+				this.domEditor.focus()
+
+				//Don't set current time with cursor unless words have been stored. 	
+				if(this.state.words.length) {
+					//TODO - Need to apply a new Entity key before calling to prevent 'Unknown DraftEntity Key' error
+					this.setCurrentTimeWithCursor(this.editorStateRealTime)
+				}
+		
+				this.setState({ editorState: this.editorStateRealTime }) //Required to ensure clicking on a word adjusts the current time				
+			})
 	}
 
 	render() {
@@ -341,6 +382,7 @@ class App extends Component {
 					/>
 				</div>
 				<div
+					ref={editor => this.editor = editor}
 					style={styles.editor}
 					onClick={this.focus}>
 					<Editor
