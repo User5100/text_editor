@@ -42,76 +42,182 @@ class App extends Component {
 		this.setCurrentTimeWithCursor = this.setCurrentTimeWithCursor.bind(this)
 		this.setCurrentTime = this.setCurrentTime.bind(this)
 		this.applyNewWordEntity = this.applyNewWordEntity.bind(this)
-		this.getNewFromText = this.getNewFromText.bind(this)
+		this.getNewWordsInsertedBeforeExistingFromText = this.getNewWordsInsertedBeforeExistingFromText.bind(this)
+		this.getNewWordsInsertedAfterExistingFromText = this.getNewWordsInsertedAfterExistingFromText.bind(this)
 		this.getNewWordsAndApplyEntity = this.getNewWordsAndApplyEntity.bind(this)
 		this.editorStateRealTime
 	}
 
 	getNewWordsAndApplyEntity() {
 		Promise
-			.resolve(this.getNewFromText())
-			.then(words => {	// Array<{ word: string, anchor: number, focus: number }>
-				
+			.resolve(this.getNewWordsInsertedBeforeExistingFromText()) // Gets new words entered into transcript
+			.then(newWordsInsertedBefore => {	// Array<{ word: string, anchor: number, focus: number }>
+				console.log('newWordsInsertedBefore: ', newWordsInsertedBefore)
 				// Apply entity to each word
-				words.map(word => {
-					let { anchor, focus } = word
-					this.applyNewWordEntity(anchor, focus)
-				})
-				
+				newWordsInsertedBefore.map(word => {
+					let { anchor, focus, data } = word
+					this.applyNewWordEntity(anchor, focus, data) // Note calling applyNewWordEntity updates editorState 
+				})	
+			})
+			.then(() => {
+				console.log(convertToRaw(this.state.editorState.getCurrentContent()))
+				return 1
+			})
+			.then(() => this.getNewWordsInsertedAfterExistingFromText())
+			.then(words => calculateAnchorFocusOffsets(words))
+			.then(revisedWords => this.setState({ words: revisedWords }))
+			.then(() => {
+				this.createEntities() //For all words including those inserted after
 			})
 	}
 
-	getNewFromText() {
+	getNewWordsInsertedBeforeExistingFromText() {
 		var contentState = convertToRaw(this.state.editorState.getCurrentContent())
 		var block = contentState.blocks[0]
 		var { text, entityRanges } = block
 		var startNewWord = 0
 		var endNewWord = 0
 		var newWords = []
+		var newWord
+		var entityMap = contentState.entityMap
+		var entityBefore
+		var entityAfter
 		
-		entityRanges.map(range => {
-			let { offset, length } = range
+		entityRanges.map((range, i) => {
+			let { offset, length, key } = range
 
 			// Test if word is not included in entity ranges and therefore must be a new word
-			if(offset > startNewWord) { 
-				let newWord = text.slice(startNewWord, offset)
-				newWord = newWord.split(' ')	// Handle splitting on words
 
-				newWord = newWord.map(word => {					
+			// offset > startNewWord tests if a new word(s) is inserted BEFORE existing word
+			if(offset > startNewWord) {
+
+				let entityKeyWordBefore
+
+				if(i > 0) {
+					entityKeyWordBefore = entityRanges[i - 1].key
+				} else {
+					entityKeyWordBefore = entityRanges[0].key
+				}
+
+				let entityKeyWordAfter = entityRanges[i].key
+				
+				entityBefore = entityMap[entityKeyWordBefore]
+				entityAfter = entityMap[entityKeyWordAfter]
+				newWord = text.slice(startNewWord, offset)
+				newWord = newWord
+					.split(' ')	// Handle splitting on words by 'space'
+					.filter(word => word.word !== '') // Remove 'empty' words
+
+				let startTime = entityBefore.data.timestamp + entityBefore.data.length
+				let endTime
+
+				if(i > 0) {
+					endTime = entityAfter.data.timestamp
+				} else {
+					endTime = entityAfter.data.timestamp
+				}
+
+				let timeInBetween = (endTime - startTime) / (newWord.length - 1)
+
+				console.log(startTime, endTime, timeInBetween)
+
+				newWord = newWord.map((word, index) => {	
+					// Loop through new words	array returning Array<{ word: string, anchor: number, focus: number }>			
 					endNewWord = startNewWord + word.length
 
 					let n = {
 						word,
 						anchor: startNewWord,
-						focus: endNewWord
+						focus: endNewWord,
+						data: {
+							id: null, 
+							word,
+							score: 1,
+							speakerNo: null,
+							speakerLabel: null, 
+							timestamp: startTime + (index * timeInBetween), 
+							length: timeInBetween,
+							anchorOffsetState: startNewWord,
+							focusOffsetState: endNewWord } 
 					}
 
 					startNewWord += word.length + 1
 					return n 
 				})
+				.filter(word => word.word !== '') // Remove 'empty' words
+
+				console.log('newWord: ', newWord)
 
 				// Avoid treating '' as a new word
 				newWord = newWord.map(w => {
 					if(w.word.length) {
 						newWords.push(w)
 					}
-				})		
-			}
-
+				})
+			}  
 			startNewWord = offset + length + 1
 		})
 
 		return newWords // Array<{ word: string, anchor: number, focus: number }>
 	}
 
-	applyNewWordEntity(anchor, focus) {
+	getNewWordsInsertedAfterExistingFromText() {
+		var words = this.rawToWords()
+		var flattenedWords = []
+
+		// Loop through words to identify words with spaces
+		// If we find a word with a space treat it as more than one word
+
+		words = words.map((wordObj, i) => {
+
+			let endTimestamp = wordObj.length + wordObj.timestamp
+
+			let singleWords = wordObj.word
+													.split(' ')
+													.filter(singleWord => singleWord !== '') // Filter out empty words
+
+			let timeBetweenWords = (endTimestamp - wordObj.timestamp) / singleWords.length
+
+			// Calculates timestamps - TODO - Create separate function
+			singleWords = singleWords
+			.map((single, i) => {
+				let timestamp
+				let length // revised word length
+
+				timestamp = (timeBetweenWords * i) + wordObj.timestamp
+				length = wordObj.length / singleWords.length
+
+				return Object.assign({}, 
+					wordObj, 
+					{ word: single },
+					{ timestamp },
+					{ length })
+			})
+			
+			// TODO - Update state of words then update editor state
+			flattenedWords = [...flattenedWords, ...singleWords]	
+		})
+
+		return flattenedWords
+	}
+
+	applyNewWordEntity(anchor, focus, data) {
 	
 		let contentState
+		let newContentState = this.state.editorState.getCurrentContent()
+
+		// Dynamically create new word entity based on data property which makes reference
+		// to a unique wordObject that has info on timestamp and length
+
+		newContentState = newContentState.createEntity('NEW_WORD', 'MUTABLE', data)
+
+		//Then retrieve the entity (via last created entity method)
+		let entityKey = this.getNewWordEntityKey(newContentState)
 
 		contentState = Modifier.applyEntity(
-		this.state.editorState.getCurrentContent(), 
+		newContentState, 
 		this.setSelection(anchor, focus),
-		this.getNewWordEntityKey())
+		entityKey)
 			
 		this.updateEditorState(contentState, 'apply-entity')	
 	}
@@ -157,7 +263,8 @@ class App extends Component {
 
 		//store latest editorState for later use
 		this.editorStateRealTime = editorState
-		
+
+		this.setState({ editorState }) //Required to ensure typing word updates state
 	}
 
 	getNewWordEntityKey(content = this.state.editorState.getCurrentContent()) {
@@ -230,6 +337,8 @@ class App extends Component {
 		})
 
 		console.log(words.length, words) //TODO - updateWords state here
+		
+		return words
 	}
 
 	setSelection(anchor, focus) {
@@ -257,9 +366,7 @@ class App extends Component {
 				//convert segment into words
 				return segmentsToWords(srts)
 			})
-			.then(words => {
-				return calculateAnchorFocusOffsets(words)
-			})
+			.then(words => calculateAnchorFocusOffsets(words))
 			.then(revisedWords => {
 				this.setState({ words: revisedWords })
 			})
@@ -323,6 +430,8 @@ class App extends Component {
 		.map(event => event.code)
 		.filter(code => code.indexOf('Arrow') === 0)
 
+		//this.letter$ = Observable.fromEvent
+
 		Observable.merge(this.backSpace$, this.arrow$)
 			.subscribe(() => this.setState({ editorState: this.editorStateRealTime }))
 
@@ -361,12 +470,6 @@ class App extends Component {
 						style={styles.button}
 						type="button"
 						value="Log State"
-					/>
-					<input
-						onClick={this.getNewFromText}
-						style={styles.button}
-						type="button"
-						value="Get New From Text"
 					/>
 					<input
 						onClick={this.rawToWords}
