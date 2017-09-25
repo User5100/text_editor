@@ -56,7 +56,7 @@ export class Tags extends Component {
 						{this.props.tags.map((tag, i) => (
 							<div
 								key={i}>
-								<button>{tag.tag}</button>
+								<Button>{tag.tag}</Button>
 								{positions(tag.position, i)}
 							</div>
 						))}
@@ -72,13 +72,29 @@ const HideTopic = styled.div`
 	position: relative;
 `
 
+const Button = styled.button`
+	border: 1px solid #A9C9EC;
+	border-radius: 4px;
+	margin: 2%;
+	height: 40px;
+	background: transparent;
+	color: #A9C9EC;
+	transition: background .1s; 
+
+	&:hover {
+		cursor: pointer;
+		background: #3C65A3;
+	}
+`
+
 const styles = {
 	tagsContainer: {
 		position: 'absolute',
-		background: 'lightblue',
+		background: '#2B5798',
 		width: '20%',
 		top: 0,
 		height: '100%',
-		overflowY: 'scroll'
+		overflowY: 'scroll',
+		gridArea: 'sidebar'
 	}
 }

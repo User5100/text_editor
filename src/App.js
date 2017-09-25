@@ -19,6 +19,7 @@ import 'rxjs/add/operator/distinct'
 import 'rxjs/add/operator/debounceTime'
 import 'rxjs/add/operator/throttleTime'
 import 'rxjs/add/operator/mapTo'
+import 'rxjs/add/operator/do'
 
 import { Tags } from './Tags'
 import { Player } from './Player'
@@ -411,8 +412,8 @@ class App extends Component {
 		Observable
 		.fromEvent(window, 'mousemove')
 		.throttleTime(40)
-		.map(event => event.screenX)
-		.filter(screenX => screenX < 40)
+		.map(event => event.clientX)
+		.filter(clientX => clientX < 10)
 		.mapTo(0)
 		.subscribe(showTopics => {
 			if(this.state.showTopics == -1) {
@@ -555,83 +556,141 @@ class App extends Component {
 		}
 
 		return (
-			<div style={styles.root}>
+			<AppContainer>	
 				<audio
 					style={{ marginLeft: '40%' }}
 					ref={audio => this.audio = audio}
-					controls
 					src='http://k003.kiwi6.com/hotlink/rp59uyxx7z/1000009.wav'	
 				/>
-				<div>
-					<input
-						onClick={this.logState}
-						style={styles.button}
-						type="button"
-						value="Log State"
-					/>
-					<input
-						onClick={this.rawToWords}
-						style={styles.button}
-						type="button"
-						value="Raw To Words"
-					/>
-					<input
-						onClick={this.getNewWordsAndApplyEntity}
-						style={styles.button}
-						type="button"
-						value="Get new words and apply NEW_WORD entity"
-					/>
-					<button
-						onClick={this.setProbability}>Increase</button>
-				</div>
+				<AppBar />
+				
 				<Tags
 					hideTopics={this.hideTopics}
 					showTopics={this.state.showTopics}
 					tags={this.state.tags}
 				/>
-
-				<Motion
-					style={ {left: spring(shiftTextLeft)} }>
-					{value =>
-						<div
-							ref={editor => this.editor = editor}
-							style={Object.assign({}, styles.editor, { left: `${value.left}%` })}
-							onClick={this.focus}>
-							<Editor
-								customStyleMap={styleMap} 
-								editorState={this.state.editorState} 
-								onChange={this.onChange}
-								placeholder="Loading..."
-								ref={this.setDomEditorRef} />
-						</div>
-					}
-				</Motion>
+				<div>
+					<Motion
+						style={ {left: spring(shiftTextLeft)} }>
+						{value =>
+							<div
+								ref={editor => this.editor = editor}
+								style={Object.assign({}, styles.editor, { left: `${value.left}%` })}
+								onClick={this.focus}>
+								<ToolBar>
+									<input
+										onClick={this.logState}
+										style={styles.button}
+										type="button"
+										value="Log State"
+									/>
+									<input
+										onClick={this.rawToWords}
+										style={styles.button}
+										type="button"
+										value="Raw To Words"
+									/>
+									<input
+										onClick={this.getNewWordsAndApplyEntity}
+										style={styles.button}
+										type="button"
+										value="Get new words and apply NEW_WORD entity"
+									/>
+									<Button
+										onClick={this.setProbability}>Increase</Button>
+								</ToolBar>
+								<EditorContainer>
+									<div
+										style={{ margin: '4%' }}>
+									<Editor
+										customStyleMap={styleMap} 
+										editorState={this.state.editorState} 
+										onChange={this.onChange}
+										placeholder="Loading..."
+										ref={this.setDomEditorRef} />
+									</div>
+								</EditorContainer>
+							</div>
+						}
+					</Motion>
+				</div>
 				<Player
 					audio={this.audio}
 					time={this.state.time}
 					duration={this.state.duration}
 				/>
-			</div>
+			</AppContainer>
 		)
 	}
 }
 
+const AppContainer = styled.div`
+	font-family: Helvetica, sans-serif;
+	height: 100vh;
+	display: grid;
+	grid-gap: 0;
+	grid-template: 
+		[header-top] "header header" 1fr [header-bottom]
+		[main-top] "sidebar text" 14fr [main-bottom]
+		[player-top] "player player" 1fr [player-bottom]
+								/ 3fr 6fr;
+`
+
+const AppBar = styled.div`
+	background: #2A579A;
+	grid-area: header;
+`
+
+const ToolBar = styled.div`
+	background: #F1F1F1;
+	border-bottom: 1px solid #D9D9D9;
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+	height: 7vh;
+`
+const EditorContainer = styled.div`
+	background-color: #FFF;
+	border: 1px solid #D9D9D9;
+	border-radius: 3px;
+	box-sizing: border-box;
+	margin: 2%;
+	height: 70vh;
+	overflow-y: scroll
+`
+
+const Button = styled.button`
+	border: 1px solid #E0E0E0;
+	border-radius: 4px;
+	text-align: center;
+	background-color: #FDFDFD;
+	color: #575757;
+	margin: 1%;
+	padding: 6px;
+	transition: background-color 0.1s color 0.1s border-color 0.1s;
+	&:hover {
+		cursor: pointer;
+		color: #505050;
+		background-color: #C5C5C5;
+		border-color: #B6B6B6;
+	}
+`
+
 const styles = {
-	root: {
-		fontFamily: '\'Helvetica\', sans-serif',
-		padding: 20,
-		width: 600,
-	},
 	editor: {
-		border: '1px solid #ccc',
 		cursor: 'text',
 		minHeight: 80,
-		padding: 10,
 		position: 'absolute'
 	},
 	button: {
-		marginTop: 10,
+		border: '1px solid #E0E0E0',
+		borderRadius: '4px',
 		textAlign: 'center',
+		background: '#FDFDFD',
+		color: '#575757',
+		margin: '1%',
+		padding: '6px'
 	}
 }
 

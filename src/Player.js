@@ -48,9 +48,12 @@ export class Player extends Component {
 }
 
 const PlayerControls = styled.div`
+  grid-area: player;
   position: fixed;
   bottom: 0;
   width: 100%;
-  height: 10%;
-  background-color: lightblue;
+  height: 10vh;
+  background-color: #F1F1F1;
+  color: #696969; 
+  border-top: 1px solid #D9D9D9;
 `
