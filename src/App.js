@@ -568,6 +568,7 @@ class App extends Component {
 					hideTopics={this.hideTopics}
 					showTopics={this.state.showTopics}
 					tags={this.state.tags}
+					setCurrentTime={this.setCurrentTime}
 				/>
 				<div>
 					<Motion

@@ -7,6 +7,11 @@ export class Tags extends Component {
 		super()
 	}
 
+	handleClick(position) {
+		let { timestamp } = position
+		this.props.setCurrentTime(timestamp)
+	}
+
 	componentDidMount() {	
 	}
 
@@ -18,7 +23,7 @@ export class Tags extends Component {
 		let tags = this.props.tags
 		let showTopics = this.props.showTopics
 
-		let positions = (positions, index) => {
+		let positions = (positions, index, tag) => {
 			if(!positions) return 0
 
 			if(positions.length) {
@@ -27,11 +32,23 @@ export class Tags extends Component {
 						key={index}>
 						{
 							positions.map((position, i) => {
-								return (
-									<button
-										key={i}>{i}
-									</button>
-								)
+								if(i) {
+									return (
+										<Button
+											onClick={() => this.handleClick(position)}
+											key={i}>{i}
+										</Button>
+									)
+								} else {
+									return (
+										<Button
+											onClick={() => this.handleClick(position)}
+											key={i}>{tag}
+										</Button>
+									)
+								}
+
+								
 							})
 						}
 					</div>
@@ -56,8 +73,7 @@ export class Tags extends Component {
 						{this.props.tags.map((tag, i) => (
 							<div
 								key={i}>
-								<Button>{tag.tag}</Button>
-								{positions(tag.position, i)}
+								{positions(tag.position, i, tag.tag)}
 							</div>
 						))}
 					</div>
