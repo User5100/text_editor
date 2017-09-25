@@ -47,10 +47,6 @@ export const wordsToText = (words) => {
 
 }
 
-export const addTimeStampOfNextWord = (words) => {
-  
-}
-
 export const transformContent = (words, transformFn, editorState) => {
   let newContentState = editorState.getCurrentContent()
   let contentStateWithAppliedEntities
@@ -62,4 +58,56 @@ export const transformContent = (words, transformFn, editorState) => {
   })
 
   return newContentState
+}
+
+export const segmentsToBlocks = (words) => {
+  /*
+  block = {
+			text,
+			entityRanges	
+	}
+  */
+  var lastSpeakerNo = null
+  var blocks = []
+  var entityRanges = []
+  var inc = 0
+
+  words.map((wordObj, index) => {  
+    let { speakerNo, word } = wordObj
+    let entityRange 
+
+    //Create entity ranges
+    entityRange = Object.assign({}, 
+      { offset: wordObj.anchorOffsetState,
+        length: typeof wordObj.word === 'string'? wordObj.word.length : (wordObj.word).toString().length,
+        key: (index).toString() })
+
+    //Create blocks
+    if(speakerNo !== lastSpeakerNo) {
+
+      entityRanges = [entityRange]
+      // Create a new block i.e { text, entityRanges }
+      let newBlock = Object.assign({}, 
+        { text: `${word} ` },
+        { entityRanges })
+      blocks.push(newBlock)
+    } else {
+      // Speaker is the same so add word to latest block of text
+      let latestBlock = blocks[blocks.length - 1] // { text, entityRanges }
+      let latestText = latestBlock.text += `${word} `
+
+      entityRanges = [...entityRanges, entityRange]
+
+      let updatedBlock = Object.assign({}, 
+        latestBlock, 
+        { text: latestText },
+        { entityRanges: entityRanges }
+      )
+      blocks = [...blocks.slice(0, blocks.length - 1), updatedBlock]
+    }
+    //set the last speaker no for the next iteration
+    lastSpeakerNo = speakerNo
+  })
+  console.log('blocks: ', blocks)
+  return blocks
 }

@@ -1,8 +1,9 @@
 import React, { Component } from 'react'
+import { Motion, spring } from 'react-motion'
 import { Editor, EditorState, 
 				 Modifier, ContentState,
 				 convertToRaw, convertFromRaw,
-				 CharacterMetadata } from 'draft-js'
+				 CharacterMetadata, Entity } from 'draft-js'
 import * as axios from 'axios'
 import * as Immutable from 'immutable'
 import { Observable } from 'rxjs/Observable'
@@ -16,21 +17,29 @@ import 'rxjs/add/operator/filter'
 import 'rxjs/add/operator/scan'
 import 'rxjs/add/operator/distinct'
 import 'rxjs/add/operator/debounceTime'
+import 'rxjs/add/operator/throttleTime'
+import 'rxjs/add/operator/mapTo'
+import { Tags } from './Tags'
 
 import { segmentsToWords,
-				 calculateAnchorFocusOffsets,
-				 wordsToText,
-				 transformContent } from './helpers'
+		 calculateAnchorFocusOffsets,
+		 wordsToText,
+         segmentsToBlocks } from './helpers'
 
 class App extends Component {
 	constructor() {
 		super()
-		this.state = { editorState: EditorState.createEmpty(), words: [] }
+		this.state = { editorState: EditorState.createEmpty(), 
+			words: [],
+			tags: [],
+			showTopics: 0
+		}
 		this.onChange = this.onChange.bind(this)
 		this.logState = () => {
 			console.log('startOffset: ', this.state.editorState.getSelection().getStartOffset())
 			console.log('this.state.editorState: ', this.state.editorState.toJS())
 			console.log('this.state.words: ', this.state.words)
+			console.log('this.state.tags: ', this.state.tags)
 			console.log('convert contentState to raw: ', convertToRaw(this.state.editorState.getCurrentContent()))
 		}
 		this.setDomEditorRef = ref => this.domEditor = ref
@@ -46,6 +55,21 @@ class App extends Component {
 		this.getNewWordsInsertedAfterExistingFromText = this.getNewWordsInsertedAfterExistingFromText.bind(this)
 		this.getNewWordsAndApplyEntity = this.getNewWordsAndApplyEntity.bind(this)
 		this.editorStateRealTime
+		this.hideTopics = this.hideTopics.bind(this)
+		this.setProbability = this.setProbability.bind(this)
+		this.probability = 0.5
+	}
+
+	setProbability(event) {
+		console.log('dd')
+		event.stopPropagation()
+		this.probability += .1
+		this.createEntities(this.probability)
+	}
+
+	hideTopics(event) {
+		event.stopPropagation()
+		this.setState({ showTopics: -1 })
 	}
 
 	getNewWordsAndApplyEntity() {
@@ -230,21 +254,23 @@ class App extends Component {
 
 	setCurrentTimeWithCursor(editorState) {
 		var contentState = editorState.getCurrentContent()
-		var selectionState = editorState.getSelection()
+    var selectionState = editorState.getSelection()
+    var startKey = selectionState.getStartKey()
 		var start = selectionState.getStartOffset()
 		var block = contentState.getFirstBlock()
 		var text = block.getText()
 		var entityKey
 		var entity
-		var timestamp
+    var timestamp
+    var _block = contentState.getBlockForKey(startKey)
 
 		//if block handles error when a user clicks on a space between words (i.e a non word)
 		if(text.slice(start, start + 1) === ' ') {
 			start = (start - 1).toString()
 		}
 
-		entityKey = block.getEntityAt(start)
-
+    entityKey = _block.getEntityAt(start)
+    console.log('entityKey: ', entityKey)
 		if(entityKey) { //Handle when entityKey is null because new word has not had entity applied yet
 			entity = contentState.getEntity(entityKey)
 			timestamp = entity.get('data').timestamp
@@ -272,13 +298,14 @@ class App extends Component {
 		return entityKey
 	}
 
-	createEntities() {
+	createEntities(probability = 0.3) {
 		var contentState
 		var words = this.state.words
 		var entityRanges
+		var inlineStyleRanges = []
 		var entityMap = {}
 		var text = wordsToText(words)
-		var block
+		var blocks
 
 		function createJSEntity(type, mutability, data = {}) {
 			return {
@@ -295,40 +322,64 @@ class App extends Component {
 				{ offset: wordObj.anchorOffsetState,
 					length: typeof wordObj.word === 'string'? wordObj.word.length : (wordObj.word).toString().length,
 					key: (index).toString() })
-		})
+    })
 
-		words.map((wordObj, index) => {
-			let type = (wordObj.id).toString()		
-			entityMap[index] = createJSEntity(type, 'MUTABLE', wordObj)		
-		})
+    words.map((wordObj, index) => {
+      let type = (wordObj.id).toString()		
+      entityMap[index.toString()] = createJSEntity(type, 'MUTABLE', wordObj)		
+    })
 
-		//create an entity for new word (last entity created)
+    // Create an entity for new word (last entity created)
 		entityMap[words.length] = createJSEntity('NEW_WORD', 'MUTABLE')
+		console.log(probability)
+		words.map((wordObj, index) => {
+			if(wordObj.score <= probability) {
+				let alertWord
+				alertWord = Object.assign({}, 
+					{ offset: wordObj.anchorOffsetState,
+						length: typeof wordObj.word === 'string'? wordObj.word.length : (wordObj.word).toString().length,
+						style: 'LOW' })
 
-		block = {
-			text,
-			entityRanges	
-		}
-
-		contentState = convertFromRaw({
-			blocks: [block],
-			entityMap
+				inlineStyleRanges.push(alertWord) 
+			}
 		})
 
-		this.updateEditorState(contentState, 'apply-entity')
+    let block = {
+      text,
+			entityRanges,
+			inlineStyleRanges // Array<{ style: string, offset: number, length: number }>
+    }
+
+    blocks = segmentsToBlocks(words)
+    
+    contentState = convertFromRaw({
+      blocks: [block],
+      entityMap: Object.assign({}, entityMap)
+    })
+      
+    this.updateEditorState(contentState, 'apply-entity')
+
 	}
 
 	rawToWords() {
 		var words = []
 		var raw = convertToRaw(this.state.editorState.getCurrentContent())
-		var block = raw.blocks[0]
-		var entityRanges = block.entityRanges // Array<{ offset: number, length: number, key: number }>
-		var text = block.text									// text: string
-		var entityMap = raw.entityMap 				// { 0: { data: {}, mutability: string, type: string }, ... }
+		var blocks = segmentsToBlocks(words)
+		var entityRanges = [] // Array<{ offset: number, length: number, key: number }>
+		var text = ''				  // text: string
+    var entityMap	= {}    // { 0: { data: {}, mutability: string, type: string }, ... }
+    							
+    entityMap = raw.entityMap
+    console.log('entityMap: ', entityMap)
+
+    blocks.map(block => {
+      entityRanges = [...entityRanges, ...block.entityRanges]
+      text += `${block.text} `	
+    })
 
 		words = entityRanges.map(range => {
 			let { offset, length, key } = range
-			let word = text.slice(offset, offset + length)//.replace(/ /g, '')
+			let word = text.slice(offset, offset + length) //.replace(/ /g, '')
 
 			return Object.assign({}, entityMap[key].data, { 
 				word, 
@@ -353,14 +404,30 @@ class App extends Component {
 	}
 
 	componentDidMount() {
+		Observable
+		.fromEvent(window, 'mousemove')
+		.throttleTime(40)
+		.map(event => event.screenX)
+		.filter(screenX => screenX < 40)
+		.mapTo(0)
+		.subscribe(showTopics => {
+			if(this.state.showTopics == -1) {
+				this.setState({ showTopics })
+			}	
+		})
+
 		console.log('startOffset: ', this.state.editorState.getSelection().getStartOffset())
 		//this.domEditor.focus()
 
 		//get data from mock server
 		axios.get('http://localhost:3000/Item')
 			.then(response => {
+
+				let { SRTs, tags } = response.data
+
+				this.setState({ tags: tags.tags })
 				//get segments from server response
-				return response.data.SRTs
+				return SRTs
 			})
 			.then(srts => {
 				//convert segment into words
@@ -436,7 +503,7 @@ class App extends Component {
 			.subscribe(() => this.setState({ editorState: this.editorStateRealTime }))
 
 		this.click$ = Observable
-			.fromEvent(document, 'click')
+			.fromEvent(this.editor, 'click')
 
 		this.click$
 			//document is the target so this.domEditor.focus() sets cursor
@@ -457,9 +524,18 @@ class App extends Component {
 	}
 
 	render() {
+		let shiftTextLeft
+
+		if(this.state.showTopics === -1) {
+			shiftTextLeft = 0
+		} else if(this.state.showTopics === 0) {
+			shiftTextLeft = 20
+		}
+
 		return (
 			<div style={styles.root}>
 				<audio
+					style={{ marginLeft: '30%' }}
 					ref={audio => this.audio = audio}
 					controls
 					src='http://k003.kiwi6.com/hotlink/rp59uyxx7z/1000009.wav'	
@@ -483,19 +559,31 @@ class App extends Component {
 						type="button"
 						value="Get new words and apply NEW_WORD entity"
 					/>
+					<button
+						onClick={this.setProbability}>Increase</button>
 				</div>
-				<div
-					ref={editor => this.editor = editor}
-					style={styles.editor}
-					onClick={this.focus}>
-					<Editor
-						customStyleMap={styleMap} 
-						editorState={this.state.editorState} 
-						onChange={this.onChange}
-						placeholder="Loading..."
-            ref={this.setDomEditorRef} />
-				</div>
-				
+				<Tags
+					hideTopics={this.hideTopics}
+					showTopics={this.state.showTopics}
+					tags={this.state.tags}
+				/>
+
+				<Motion
+					style={ {left: spring(shiftTextLeft)} }>
+					{value =>
+						<div
+							ref={editor => this.editor = editor}
+							style={Object.assign({}, styles.editor, { left: `${value.left}%` })}
+							onClick={this.focus}>
+							<Editor
+								customStyleMap={styleMap} 
+								editorState={this.state.editorState} 
+								onChange={this.onChange}
+								placeholder="Loading..."
+								ref={this.setDomEditorRef} />
+						</div>
+					}
+				</Motion>		
 			</div>
 		)
 	}
@@ -512,6 +600,7 @@ const styles = {
 		cursor: 'text',
 		minHeight: 80,
 		padding: 10,
+		position: 'absolute'
 	},
 	button: {
 		marginTop: 10,
@@ -520,8 +609,10 @@ const styles = {
 }
 
 const styleMap = {
-  'HIGHLIGHT': {
-    fontWeight: '600',
+  'LOW': {
+	fontWeight: '600',
+	background: 'red',
+	color: 'white'
   }
 }
 
