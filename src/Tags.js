@@ -12,12 +12,6 @@ export class Tags extends Component {
 		this.props.setCurrentTime(timestamp)
 	}
 
-	componentDidMount() {	
-	}
-
-	componentDidUpdate(prevProps) {	
-	}
-
 	render() {
 
 		let tags = this.props.tags
@@ -46,9 +40,7 @@ export class Tags extends Component {
 											key={i}>{tag}
 										</Button>
 									)
-								}
-
-								
+								}	
 							})
 						}
 					</div>
@@ -61,6 +53,7 @@ export class Tags extends Component {
 				style={ {left: spring(showTopics * 20)} }>
 				{value =>
 					<div
+						className='scroll'
 						style={ 
 							Object.assign({}, 
 							styles.tagsContainer, 
@@ -111,6 +104,7 @@ const styles = {
 		top: 0,
 		height: '100%',
 		overflowY: 'scroll',
-		gridArea: 'sidebar'
+		gridArea: 'sidebar',
+		userSelect: 'none'
 	}
 }

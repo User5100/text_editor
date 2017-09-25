@@ -658,7 +658,7 @@ const EditorContainer = styled.div`
 	box-sizing: border-box;
 	margin: 2%;
 	height: 70vh;
-	overflow-y: scroll
+	overflow-y: scroll;
 `
 
 const Button = styled.button`
