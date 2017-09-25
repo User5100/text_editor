@@ -1,11 +1,11 @@
 import React, { Component } from 'react'
 import { Motion, spring } from 'react-motion'
+import styled from 'styled-components'
 import { Editor, EditorState, 
 				 Modifier, ContentState,
 				 convertToRaw, convertFromRaw,
 				 CharacterMetadata, Entity } from 'draft-js'
 import * as axios from 'axios'
-import * as Immutable from 'immutable'
 import { Observable } from 'rxjs/Observable'
 import 'rxjs/add/observable/fromEvent'
 import 'rxjs/add/observable/merge'
@@ -19,7 +19,9 @@ import 'rxjs/add/operator/distinct'
 import 'rxjs/add/operator/debounceTime'
 import 'rxjs/add/operator/throttleTime'
 import 'rxjs/add/operator/mapTo'
+
 import { Tags } from './Tags'
+import { Player } from './Player'
 
 import { segmentsToWords,
 		 calculateAnchorFocusOffsets,
@@ -29,10 +31,13 @@ import { segmentsToWords,
 class App extends Component {
 	constructor() {
 		super()
-		this.state = { editorState: EditorState.createEmpty(), 
+		this.state = { 
+			editorState: EditorState.createEmpty(), 
 			words: [],
 			tags: [],
-			showTopics: 0
+			showTopics: 0,
+			time: '00:00:00',
+			duration: '00:00:00'
 		}
 		this.onChange = this.onChange.bind(this)
 		this.logState = () => {
@@ -61,7 +66,7 @@ class App extends Component {
 	}
 
 	setProbability(event) {
-		console.log('dd')
+		console.log('setProbability')
 		event.stopPropagation()
 		this.probability += .1
 		this.createEntities(this.probability)
@@ -270,7 +275,6 @@ class App extends Component {
 		}
 
     entityKey = _block.getEntityAt(start)
-    console.log('entityKey: ', entityKey)
 		if(entityKey) { //Handle when entityKey is null because new word has not had entity applied yet
 			entity = contentState.getEntity(entityKey)
 			timestamp = entity.get('data').timestamp
@@ -451,10 +455,28 @@ class App extends Component {
 
 		Observable
 			.fromEvent(this.audio, 'loadedmetadata')
-			.subscribe(event => console.log('duration: ', event.target.duration))
+			.subscribe(event => {
+				let duration = event.target.duration
+				duration = new Date(duration * 1000)
+					.toUTCString()
+					.match(/(\d\d:\d\d:\d\d)/)[0]
+
+				this.setState({ duration })
+			})
 		
 		this.currentTime$ = Observable
 			.fromEvent(this.audio, 'timeupdate')
+
+		this.currentTime$
+			.throttleTime(500)
+			.subscribe(() => {
+				let time = this.audio.currentTime
+				time = new Date(time * 1000)
+					.toUTCString()
+					.match(/(\d\d:\d\d:\d\d)/)[0]
+
+				this.setState({ time })
+			})
 			
 		//get latest word played
 		this.lastWord$ = this.currentTime$
@@ -535,7 +557,7 @@ class App extends Component {
 		return (
 			<div style={styles.root}>
 				<audio
-					style={{ marginLeft: '30%' }}
+					style={{ marginLeft: '40%' }}
 					ref={audio => this.audio = audio}
 					controls
 					src='http://k003.kiwi6.com/hotlink/rp59uyxx7z/1000009.wav'	
@@ -583,7 +605,12 @@ class App extends Component {
 								ref={this.setDomEditorRef} />
 						</div>
 					}
-				</Motion>		
+				</Motion>
+				<Player
+					audio={this.audio}
+					time={this.state.time}
+					duration={this.state.duration}
+				/>
 			</div>
 		)
 	}

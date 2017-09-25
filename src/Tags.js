@@ -1,5 +1,6 @@
 import React, {Component } from 'react'
 import { Motion, spring } from 'react-motion'
+import styled from 'styled-components'
 
 export class Tags extends Component {
 	constructor() {
@@ -47,11 +48,11 @@ export class Tags extends Component {
 							Object.assign({}, 
 							styles.tagsContainer, 
 							{ left: `${value.left}%` }) }>
-						<div>
+						<HideTopic>
 							<button
 								onClick={this.props.hideTopics}>Hide Topics
 							</button>
-						</div>
+						</HideTopic>
 						{this.props.tags.map((tag, i) => (
 							<div
 								key={i}>
@@ -65,6 +66,11 @@ export class Tags extends Component {
 		)
 	}
 }
+
+const HideTopic = styled.div`
+	left: 70%;
+	position: relative;
+`
 
 const styles = {
 	tagsContainer: {
