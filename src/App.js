@@ -288,6 +288,7 @@ class App extends Component {
 
 	setCurrentTime(timestamp) {
 		this.audio.currentTime = timestamp
+
 	}
 
 	onChange(editorState) {
@@ -409,6 +410,7 @@ class App extends Component {
 	}
 
 	componentDidMount() {
+
 		Observable
 		.fromEvent(window, 'mousemove')
 		.throttleTime(40)
@@ -569,6 +571,7 @@ class App extends Component {
 					showTopics={this.state.showTopics}
 					tags={this.state.tags}
 					setCurrentTime={this.setCurrentTime}
+					audio={this.audio}
 				/>
 				<div>
 					<Motion
@@ -600,15 +603,16 @@ class App extends Component {
 									<Button
 										onClick={this.setProbability}>Increase</Button>
 								</ToolBar>
-								<EditorContainer>
+								<EditorContainer
+									className='edit-container'>
 									<div
 										style={{ margin: '4%' }}>
-									<Editor
-										customStyleMap={styleMap} 
-										editorState={this.state.editorState} 
-										onChange={this.onChange}
-										placeholder="Loading..."
-										ref={this.setDomEditorRef} />
+										<Editor
+											customStyleMap={styleMap} 
+											editorState={this.state.editorState} 
+											onChange={this.onChange}
+											placeholder="Loading..."
+											ref={this.setDomEditorRef} />
 									</div>
 								</EditorContainer>
 							</div>

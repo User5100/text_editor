@@ -10,6 +10,17 @@ export class Tags extends Component {
 	handleClick(position) {
 		let { timestamp } = position
 		this.props.setCurrentTime(timestamp)
+
+		//setScrollTop
+		let percentage = timestamp / this.props.audio.duration
+		let newHeight = parseInt(percentage * this.maxScrollHeight)
+		document.getElementsByClassName('edit-container')[0].scrollTop = newHeight
+	}
+
+	componentDidUpdate() {
+		if(document.getElementsByClassName('DraftEditor-root')[0].scrollHeight !== this.maxScrollHeight) {
+			this.maxScrollHeight = document.getElementsByClassName('DraftEditor-root')[0].scrollHeight
+		}
 	}
 
 	render() {
