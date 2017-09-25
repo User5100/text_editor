@@ -3,6 +3,10 @@ body {
 	background-color: #E6E6E6;
 }
 
+.player-icon:hover {
+	cursor: pointer;
+}
+
 .scroll::-webkit-scrollbar-track {
 	background-color: #FFFFFA;
 }

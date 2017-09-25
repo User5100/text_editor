@@ -55,8 +55,14 @@ export class Tags extends Component {
 							})
 						}
 					</div>
-				)
-			}
+				)} else {
+						return (
+							<Button
+								onClick={() => this.handleClick(positions)}
+								key={index}>{tag}
+							</Button>
+						)
+				}
 		}
 
 		return (

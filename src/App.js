@@ -5,6 +5,7 @@ import { Editor, EditorState,
 				 Modifier, ContentState,
 				 convertToRaw, convertFromRaw,
 				 CharacterMetadata, Entity } from 'draft-js'
+import MuiThemeProvider from 'material-ui/styles/MuiThemeProvider'
 import * as axios from 'axios'
 import { Observable } from 'rxjs/Observable'
 import 'rxjs/add/observable/fromEvent'
@@ -558,6 +559,7 @@ class App extends Component {
 		}
 
 		return (
+			<MuiThemeProvider>
 			<AppContainer>	
 				<audio
 					style={{ marginLeft: '40%' }}
@@ -625,6 +627,7 @@ class App extends Component {
 					duration={this.state.duration}
 				/>
 			</AppContainer>
+			</MuiThemeProvider>
 		)
 	}
 }
