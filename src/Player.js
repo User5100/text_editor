@@ -2,6 +2,8 @@ import React, { Component } from 'react'
 import styled from 'styled-components'
 import FontIcon from 'material-ui/FontIcon'
 
+import { Waveform } from './Waveform'
+
 export class Player extends Component {
   constructor() {
     super()
@@ -80,6 +82,8 @@ export class Player extends Component {
         <SpeedDisplay>
           <span>Speed: {playbackRate} </span>
         </SpeedDisplay>
+        <Waveform
+          setRange={this.setRange} />
         <Time>{this.props.time} / {this.props.duration}</Time>
       </PlayerControls>	
     )
@@ -111,7 +115,7 @@ const SpeedControls = styled.div`
 `
 
 const SpeedDisplay = styled.div`
-  flex: 1;
+  flex: 0.4;
 `
 
 const Time = styled.span`
